@@ -20,7 +20,7 @@ As this project is just getting started; I will refine and update the documentat
 
 I've included a Dockerfile with a pre-trained model with the speech commands for testing out the interfaces and configurations.  You can even run this from any system with a microphone and speakers for testing and evaluation.
 
-From the root of the checkout run the following to build an impage:
+From the root of the checkout run the following to build an image:
 ```Shell
 docker build . -t alice -f Docker/Dockerfile
 docker run --name alice --device /dev/snd:/dev/snd -dit alice
