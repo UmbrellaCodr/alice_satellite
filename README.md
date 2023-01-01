@@ -35,7 +35,7 @@ or you can just check it out and run: inside the Docker folder is a requirements
 python3 -m alice_satellite -v -h
 ```
 
-# support commands
+# supported commands
 ```Shell
 python -m alice_satellite -h
 usage: alice [-h] [--data DATA] [-d] [-v] [--audio_input AUDIO_INPUT] [--audio_output AUDIO_OUTPUT]
