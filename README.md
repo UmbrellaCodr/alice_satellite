@@ -147,15 +147,16 @@ To configure the mqtt settings you need a configuration file you can create a de
 
 We support all of the following mqtt settings here: [mqtt settings](https://sbtinstruments.github.io/asyncio-mqtt/configuring-the-client.html)
 
+### The only non-optional parameter
 ```yaml
 mqtt:
-  hostname="test.mosquitto.org",  # The only non-optional parameter
+  hostname: test.mosquitto.org
 ```
 
 Example:
 ```yaml
 mqtt:
-  hostname="test.mosquitto.org",  # The only non-optional parameter
+  hostname: test.mosquitto.org
   password: password
   port: 1883
   username: alice
