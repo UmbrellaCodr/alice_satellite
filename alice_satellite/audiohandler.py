@@ -262,12 +262,13 @@ class AudioHandler:
         return audio
 
     @staticmethod
-    def chunk_audio(wavform: np.ndarray, chuck_size: int = 8000, samplerate=16000) -> Generator[bytes, None, None]:
+    def chunk_audio(wavform: np.ndarray, chuck_size: int = 8000, samplerate=16000, add_empty_frame=False) -> Generator[bytes, None, None]:
         if not wavform.size > 0:
             return
 
-        empty = np.zeros(samplerate)
-        wavform = np.concatenate([wavform, empty])
+        if add_empty_frame:
+            empty = np.zeros(samplerate)
+            wavform = np.concatenate([wavform, empty])
         offset_start = 0
         if wavform.size > chuck_size:
             offset_end = chuck_size
