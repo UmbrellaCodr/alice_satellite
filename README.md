@@ -140,3 +140,23 @@ S = Rhasspy sent us a start/stop listening request
 ```
 
 <img width="1037" alt="image" src="https://user-images.githubusercontent.com/95475404/210164821-6d352a1d-fdb3-4368-92dd-8464209c14f3.png">
+
+# mqtt settings
+
+To configure the mqtt settings you need a configuration file you can create a default one by running the config command. {alice_data/config.yml}
+
+We support all of the following mqtt settings here: [mqtt settings](https://sbtinstruments.github.io/asyncio-mqtt/configuring-the-client.html)
+
+```yaml
+mqtt:
+  hostname="test.mosquitto.org",  # The only non-optional parameter
+```
+
+Example:
+```yaml
+mqtt:
+  hostname="test.mosquitto.org",  # The only non-optional parameter
+  password: password
+  port: 1883
+  username: alice
+```
