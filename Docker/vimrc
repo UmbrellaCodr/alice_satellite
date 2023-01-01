@@ -1,0 +1,97 @@
+set nocompatible
+set backspace=indent,eol,start
+set history=50          " keep 50 lines of command line history
+set ruler               " show the cursor position all the time
+set showcmd             " display incomplete commands
+set showmode		" display current mode (e.g. -- INSERT --)
+set incsearch           " do incremental searching
+set ignorecase
+set hlsearch
+syntax on
+set tabstop=4
+set softtabstop=4
+set shiftwidth=4
+set smarttab
+set expandtab
+set nowrap
+set autoread
+set encoding=utf-8  " default text encoding
+
+map <leader>ww :set list!<CR>
+map <leader>wp :set paste!<CR>
+map <leader>wf :NERDTreeToggle<CR>	" toggle directory tree
+map <leader>wt :TagbarToggle<CR>	" toggle tagbar
+map <leader>wr :TlistToggle<CR>		" toggle taglist
+map <leader>wl :set number!<CR>		" toggle line numbers
+map <silent>wh :set invhlsearch<CR>	" toggle search highlight
+
+"set spell
+set showmatch
+set matchtime=2
+set number
+set lcs=tab:│┈,eol:¬,trail:·,extends:▸,precedes:◂,nbsp:&
+
+set laststatus=2	" always show status line
+set statusline=%<	" truncate at start of line
+set statusline+=(%n)\ %f\ %h%m%r	" buffer#, filename, flags
+set statusline+=%=	" start right alignment
+set statusline+=(%l/%L,\ %c%V)\ %p%%	" line/lines, column, percent
+"set statusline+=%-30{strftime(\"\%c\",getftime(expand(\"\%\%\")))} " mod
+set statusline+=\ %y	" file type
+set statusline+=\ %{&ff}/%{strlen(&fenc)?&fenc:&enc}\ 	" format/encoding
+
+" Only do this part when compiled with support for autocommands.
+if has("autocmd")
+
+  " Enable file type detection.
+  " Use the default filetype settings, so that mail gets 'tw' set to 72,
+  " 'cindent' is on in C files, etc.
+  " Also load indent files, to automatically do language-dependent indenting.
+  " filetype plugin indent on
+  filetype plugin indent on 
+
+  " Put these in an autocmd group, so that we can delete them easily.
+  augroup vimrcEx
+  au!
+
+  " For all text files set 'textwidth' to 78 characters.
+  " autocmd FileType text setlocal textwidth=78
+
+  " When editing a file, always jump to the last known cursor position.
+  " Don't do it when the position is invalid or when inside an event handler
+  " (happens when dropping a file on gvim).
+  autocmd BufReadPost *
+    \ if line("'\"") > 0 && line("'\"") <= line("$") |
+    \   exe "normal g`\"" |
+    \ endif
+
+  augroup END
+
+  " Highlight trailing whitespace
+  autocmd ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
+  highlight ExtraWhitespace ctermbg=darkgreen guibg=lightgreen
+  "highlight ExtraWhitespace ctermbg=red guibg=red
+  match ExtraWhitespace /\s\+$/
+  autocmd BufWinEnter * match ExtraWhitespace /\s\+$/
+  autocmd InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
+  autocmd InsertLeave * match ExtraWhitespace /\s\+$/
+  autocmd BufWinLeave * call clearmatches()
+
+else
+
+  set noautoindent                " always set autoindenting on
+
+endif " has("autocmd")
+
+" plugins
+let NERDTreeIgnore = ['\.pyc$','\~$','\.rbc$','^cscope\.[fiop]']
+let NERDTreeMinimalUI=1
+let NERDTreeDirArrows=1
+
+autocmd FileType gitcommit :setlocal textwidth=0
+
+" folding everything between '/' matches
+"nnoremap \z :setlocal foldexpr=(getline(v:lnum)=~@/)?0:(getline(v:lnum-1)=~@/)\\|\\|(getline(v:lnum+1)=~@/)?1:2 foldmethod=expr foldlevel=0 foldcolumn=2<CR><CR>
+
+source ~/.vim/styles/freebsd.vim
+
