@@ -31,8 +31,11 @@ cd /root
 ```
 
 or you can just check it out and run: inside the Docker folder is a requirements.txt for the dependencies. You will need to copy the tflite into your data folder {alice_data/tflite}
+```shell
+python -m pip install 'alice_satellite @ git+https://github.com/UmbrellaCodr/alice_satellite@main'
+```
 ```Shell
-python3 -m alice_satellite -v -h
+python -m alice_satellite -v -h
 ```
 
 # supported commands
