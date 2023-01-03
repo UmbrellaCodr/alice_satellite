@@ -84,7 +84,7 @@ class AliceKWSTrain(AliceKWS):
         except FileExistsError:
             pass
 
-        # train.train(self.flags)
+        train.train(self.flags)
         self.convert_model_tflite("tflite", "stream.tflite")
 
     def predict_with_model(self, wavform) -> typing.Tuple[int, str, float, float]:

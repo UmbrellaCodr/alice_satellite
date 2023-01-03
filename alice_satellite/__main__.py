@@ -67,6 +67,7 @@ def default_config() -> dict:
     config['verbose'] = False
     config['site_id'] = "default"
     config['whisper'] = False
+    config['whisper_model'] = "base"
     return config
 
 
@@ -170,9 +171,9 @@ def get_kw_samples(config: argparse.Namespace, keyword: str, samples_path: str =
         pass
 
 
-def get_kw_samples_count(config: argparse.Namespace, keyword: str, samples_path: str = None, get_all: bool = True) -> int:
+def get_kw_samples_count(config: argparse.Namespace, keyword: str, samples_path: str = None, get_all: bool = True, offset: str = None) -> int:
     count = 0
-    for _ in get_kw_samples(config, keyword=keyword, samples_path=samples_path, get_all=get_all):
+    for _ in get_kw_samples(config, keyword=keyword, samples_path=samples_path, get_all=get_all, offset=offset):
         count += 1
     return count
 
@@ -185,7 +186,7 @@ async def list_audio_devices(config: argparse.Namespace, **kwargs) -> None:
 async def analyze(config: argparse.Namespace, **kwargs) -> None:
     """analyze samples"""
     import whisper
-    wm = whisper.load_model("base")
+    wm = whisper.load_model(config.whisper_model)
 
     audio_handler = AudioHandler(config, training=True, **kwargs)
     kw_found = get_kw(config)
@@ -218,7 +219,10 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
 
     removed = 0
     for kw in config.keywords:
-        for a_name, a_path, a_wavform in get_kw_samples(config, keyword=kw, get_all=config.all, offset=config.offset, get_audio=True):
+        count = 0
+        total = get_kw_samples_count(config, keyword=kw, get_all=config.all, offset=config.offset)
+        for a_name, a_path, a_wavform in get_kw_samples(config, keyword=kw, get_all=config.all, offset=config.offset, get_audio=config.prompt):
+            count += 1
             purge = False
             result = wm.transcribe(a_path, fp16=False)
             if kw == "noise":
@@ -228,14 +232,20 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
                 else:
                     col = "green"
             else:
-                if all(element.upper() in result['text'].upper() for element in kw.split()):
+                if config.match:
+                    if any(element.strip().upper() in result['text'].strip().upper() for element in config.match):
+                        col = "green"
+                    else:
+                        purge = True
+                        col = "red"
+                elif kw.strip().upper() in result['text'].strip().upper():
                     col = "green"
                 else:
                     purge = True
                     col = "red"
             if purge:
                 remove = False
-                print("{} -> {} ".format(a_name, colored(result['text'], col)))
+                print("({}/{}) {} -> {} ".format(count,total,a_name, colored(result['text'], col)))
                 if config.prompt:
                     remove = await handle_response()
                 elif config.purge:
@@ -246,7 +256,7 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
                         "-> {}".format(colored("removed", "red", attrs=['bold'])))
                     removed += 1
             else:
-                print("{} -> {}".format(a_name, colored(result['text'], col)))
+                print("({}/{}) {} -> {}".format(count,total,a_name, colored(result['text'], col)))
     print("removed {} samples".format(removed))
 
 
@@ -275,7 +285,7 @@ async def generate(config: argparse.Namespace, **kwargs) -> None:
 
     async with audio_handler.audio() as chunks:
         kw = "noise"
-        count = get_kw_samples_count(config, kw)
+        count = get_kw_samples_count(config, kw, get_all=False)
         if count < config.count:
             print("generating background samples... {} -> {}".format(count, config.count))
             async for audio, noise in chunks:
@@ -293,7 +303,7 @@ async def generate(config: argparse.Namespace, **kwargs) -> None:
                     break
 
         for kw in config.keywords:
-            samples = get_kw_samples_count(config, kw)
+            samples = get_kw_samples_count(config, kw, get_all=False)
             target = config.count
             print("keyword: {} -> {}".format(kw, samples))
             if samples >= target:
@@ -407,7 +417,7 @@ async def detect(config: argparse.Namespace, **kwargs) -> None:
     import alice_satellite.model.kwslite as kws
     if config.whisper:
         import whisper
-        wm = whisper.load_model("base")
+        wm = whisper.load_model(config.whisper_model)
 
     tasks = []
     model_handler = kws.AliceKWS(config)
@@ -620,6 +630,7 @@ async def verify(config: argparse.Namespace, **kwargs) -> None:
                 loop = True
             elif char == "3":
                 print("disabled")
+                loop = True
                 # if not handle_move(audio_file):
                 #     print(colored("aborted", "red", attrs=['bold']))
                 #     print(options)
@@ -628,10 +639,12 @@ async def verify(config: argparse.Namespace, **kwargs) -> None:
                 os.remove(audio_file)
                 print("{} {}".format(colored("deteled", "red"), audio_name))
             elif char == "5":
-                if not handle_move(audio_file, morph=True):
-                    print(colored("aborted", "red", attrs=['bold']))
-                    print(options)
-                    loop = True
+                print("disabled")
+                loop = True
+                # if not handle_move(audio_file, morph=True):
+                #     print(colored("aborted", "red", attrs=['bold']))
+                #     print(options)
+                #     loop = True
             elif char == "6":
                 noise = get_noise(config)
                 morph_file(config, audio_handler,
@@ -688,15 +701,24 @@ async def info(config: argparse.Namespace, **kwargs) -> None:
 
     if os.path.exists(config.alice.samples_path):
         print("keyword samples:")
+        wanted_words = ""
         for k in get_kw(config):
+            k = str(k)
+            if k.lower() == "_background_noise_":
+                continue
             total = 0
-            morph = 0
+            morphed = 0
             for f, _, _ in get_kw_samples(config, keyword=k):
                 total += 1
                 if f.startswith("m"):
-                    morph += 1
+                    morphed += 1
             print("  {:>12} -> original: {:>6} + morphed({:>6}) == total: {:>6}".format(k,
-                int(total-morph), morph, total))
+                int(total-morphed), morphed, total))
+            if len(wanted_words) > 0:
+                wanted_words += f",{k}"
+            else:
+                wanted_words = f"{k}"
+        print(f"wanted_words: {wanted_words}")
     else:
         print("no samples")
 
@@ -716,7 +738,7 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
     import alice_satellite.model.kwslite as kws
     if config.whisper:
         import whisper
-        wm = whisper.load_model("base")
+        wm = whisper.load_model(config.whisper_model)
     if not satellite_verify(config):
         cprint("uh-oh", "magenta")
         return
@@ -973,6 +995,9 @@ async def main(**kwargs) -> None:
     parser_analyze.add_argument(
         "-w", "--whisper", action="store_true", help="enable whisper transcription",
         default=True
+    )
+    parser_analyze.add_argument(
+        "-m", "--match", type=str, nargs='+', help="alternate text to match on"
     )
 
     parser_listen = subparsers.add_parser(
