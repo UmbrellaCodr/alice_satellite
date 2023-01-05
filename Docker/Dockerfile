@@ -11,9 +11,7 @@ RUN apt-get update && apt-get install -y \
     libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Docker/requirements.txt /root/requirements.txt
-
-RUN pip3 install -r /root/requirements.txt
+RUN python3 -m pip install 'alice_satellite @ git+https://github.com/UmbrellaCodr/alice_satellite@main'
 
 RUN chsh -s /bin/zsh root && sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
@@ -21,9 +19,8 @@ COPY Docker/zshrc /root/.zshrc
 COPY Docker/vimrc /root/.vimrc
 COPY Docker/freebsd.vim /root/.vim/styles/freebsd.vim
 COPY Docker/samples /root/
-COPY Docker/tflite /root/alice_data/tflite
 COPY Docker/demo.sh /root
-COPY alice_satellite /root/alice_satellite
+COPY tflite /root/alice_data/tflite
 
 # ENTRYPOINT [ "/bin/zsh" ]
 # RUN /bin/zsh

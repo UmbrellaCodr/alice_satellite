@@ -320,9 +320,13 @@ class AliceKWS():
 
     def load(self) -> None:
         if os.path.exists(self.data):
-            _log.info("loading existing model")
             model_path = os.path.join(
                 self.data, "tflite", "stream.tflite")
+            if os.path.exists(model_path):
+                _log.info("loading existing model")
+            else:
+                raise FileNotFoundError("model not found")
+            
             self.interpreter = tflite.Interpreter(model_path=model_path)
             self.interpreter.allocate_tensors()
 

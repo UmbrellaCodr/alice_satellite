@@ -30,7 +30,7 @@ import logging
 import tensorflow.compat.v1 as tf
 from scipy.special import softmax
 import numpy as np
-import absl
+import hashlib
 import shutil
 from .kwslite import AliceKWS
 from .. import ALICE_MODULE_PATH
@@ -77,6 +77,10 @@ class AliceKWSTrain(AliceKWS):
         except (ValueError, AttributeError, RuntimeError, TypeError) as err:
             _log.warning(
                 'FAILED to convert to mode %s, tflite: %s', mode, err)
+        digest_file = os.path.join(self.data, "tflite", "digest")
+        model_digest = hashlib.sha256(open(os.path.join(path_model, fname), "rb").read()).hexdigest()
+        with open(digest_file, "w", encoding="utf-8") as f:
+            f.write(model_digest)
 
     def train(self) -> None:
         try:

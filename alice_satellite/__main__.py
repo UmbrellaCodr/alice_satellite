@@ -36,6 +36,9 @@ import datetime
 from enum import Enum
 import json
 import logging
+import hashlib
+import requests
+from six.moves import urllib
 from importlib_resources import files
 import numpy as np
 from termcolor import colored, cprint
@@ -59,6 +62,7 @@ def keyword_normalize(keyword: str) -> str:
 
 def default_config() -> dict:
     config = {}
+    config['alice_url'] = "https://raw.githubusercontent.com/UmbrellaCodr/alice_satellite/main"
     config['audio_input'] = sd.default.device[0]
     config['audio_output'] = sd.default.device[1]
     config['db'] = int(80)
@@ -99,7 +103,8 @@ def get_resources(config: argparse.Namespace):
     if not hasattr(config, 'wav'):
         config.wav = argparse.Namespace()
         config.wav.err = files('alice_satellite.wav').joinpath('alice_err.wav')
-        config.wav.wake = files('alice_satellite.wav').joinpath('alice_wake.wav')
+        config.wav.wake = files(
+            'alice_satellite.wav').joinpath('alice_wake.wav')
         config.wav.recorded = files(
             'alice_satellite.wav').joinpath('alice_recorded.wav')
     if hasattr(config, 'mqtt'):
@@ -220,7 +225,8 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
     removed = 0
     for kw in config.keywords:
         count = 0
-        total = get_kw_samples_count(config, keyword=kw, get_all=config.all, offset=config.offset)
+        total = get_kw_samples_count(
+            config, keyword=kw, get_all=config.all, offset=config.offset)
         for a_name, a_path, a_wavform in get_kw_samples(config, keyword=kw, get_all=config.all, offset=config.offset, get_audio=config.prompt):
             count += 1
             purge = False
@@ -245,7 +251,8 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
                     col = "red"
             if purge:
                 remove = False
-                print("({}/{}) {} -> {} ".format(count,total,a_name, colored(result['text'], col)))
+                print("({}/{}) {} -> {} ".format(count, total,
+                      a_name, colored(result['text'], col)))
                 if config.prompt:
                     remove = await handle_response()
                 elif config.purge:
@@ -256,7 +263,8 @@ async def analyze(config: argparse.Namespace, **kwargs) -> None:
                         "-> {}".format(colored("removed", "red", attrs=['bold'])))
                     removed += 1
             else:
-                print("({}/{}) {} -> {}".format(count,total,a_name, colored(result['text'], col)))
+                print("({}/{}) {} -> {}".format(count, total,
+                      a_name, colored(result['text'], col)))
     print("removed {} samples".format(removed))
 
 
@@ -713,7 +721,7 @@ async def info(config: argparse.Namespace, **kwargs) -> None:
                 if f.startswith("m"):
                     morphed += 1
             print("  {:>12} -> original: {:>6} + morphed({:>6}) == total: {:>6}".format(k,
-                int(total-morphed), morphed, total))
+                                                                                        int(total-morphed), morphed, total))
             if len(wanted_words) > 0:
                 wanted_words += f",{k}"
             else:
@@ -955,6 +963,68 @@ async def do_something(config: argparse.Namespace, **kwargs) -> None:
     print("try python -m alice_satellite satellite")
 
 
+def download_model(config: argparse.Namespace, **kwargs) -> None:
+    try:
+        os.makedirs(config.alice.model_path)
+    except FileExistsError:
+        pass
+    model_files = ["labels.txt", "model_summary.txt",
+                   "stream.tflite", "digest"]
+    try:
+        for filename in model_files:
+            data_url = config.alice_url+"/tflite/"+filename
+            out_path = os.path.join(config.alice.model_path, filename)
+
+            def _progress(count, block_size, total_size):
+                sys.stdout.write(
+                    '\r>> Downloading %s %.1f%%' %
+                    (filename, float(count * block_size) / float(total_size) * 100.0))
+                sys.stdout.flush()
+
+            try:
+                filepath, _ = urllib.request.urlretrieve(
+                    data_url, out_path, _progress)
+                print("downloaded {}".format(filepath))
+            except:
+                _log.error(
+                    'Failed to download URL: %s to folder: %s\n'
+                    'Please make sure you have enough free space and'
+                    ' an internet connection', data_url, config.alice.model_path)
+                raise
+    except urllib.error.HTTPError:
+        _log.warning("unable to download model")
+
+
+async def alice_model(config: argparse.Namespace, **kwargs) -> None:
+    digest_file = os.path.join(config.alice.model_path, "digest")
+    model_file = os.path.join(config.alice.model_path, "stream.tflite")
+    digest = None
+    remote_digest = None
+    model_digest = None
+    model_c = "red"
+    digest_c = "red"
+
+    remote_url = config.alice_url + "tflite/digest"
+    remote = requests.get(remote_url, timeout=10)
+    remote_digest = remote.text
+    if os.path.exists(model_file):
+        model_digest = hashlib.sha256(
+            open(model_file, 'rb').read()).hexdigest()
+    if os.path.exists(digest_file):
+        digest = open(digest_file, "r", encoding='utf-8').read()
+    if digest == model_digest:
+        model_c = "green"
+    if digest == remote_digest:
+        digest_c = "green"
+
+    print(f"remote {remote_digest}")
+    print(f"local {colored(digest, digest_c)}")
+
+    print(f"model {colored(model_digest, model_c)}")
+    if config.update:
+        download_model(config)
+
+
 async def main(**kwargs) -> None:
     """main alice entry point"""
     handler = logging.StreamHandler()
@@ -1142,6 +1212,13 @@ async def main(**kwargs) -> None:
         "file", type=str, help="wav file to transcribe"
     )
 
+    parser_model = subparsers.add_parser(
+        'model', help='validate/update model')
+    parser_model.set_defaults(func=alice_model)
+    parser_model.add_argument(
+        "-u", "--update", action="store_true", help="download the latest model from gitbub"
+    )
+
     parser.add_argument(
         "--data", help="set the default data location",
         default=os.getcwd() + "/alice_data"
@@ -1176,6 +1253,9 @@ async def main(**kwargs) -> None:
             print("you will need to install whisper")
             print("pip install git+https://github.com/openai/whisper.git")
             sys.exit(1)
+
+    if not os.path.exists(os.path.join(config.alice.model_path, "stream.tflite")):
+        download_model(config)
 
     await args.func(config, **kwargs)
 
