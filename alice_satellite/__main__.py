@@ -976,15 +976,22 @@ def download_model(config: argparse.Namespace, **kwargs) -> None:
             out_path = os.path.join(config.alice.model_path, filename)
 
             def _progress(count, block_size, total_size):
+                if total_size > block_size:
+                    if (count * block_size) < total_size:
+                        percentage = (float(count * block_size) / float(total_size)) * 100.0
+                    else:
+                        percentage = 100
+                else:
+                    percentage = 100
                 sys.stdout.write(
                     '\r>> Downloading %s %.1f%%' %
-                    (filename, float(count * block_size) / float(total_size) * 100.0))
+                    (filename, percentage))
                 sys.stdout.flush()
 
             try:
                 filepath, _ = urllib.request.urlretrieve(
                     data_url, out_path, _progress)
-                print("downloaded {}".format(filepath))
+                print(" {} {}".format(colored("downloaded", "red"), filepath))
             except:
                 _log.error(
                     'Failed to download URL: %s to folder: %s\n'
@@ -1006,7 +1013,7 @@ async def alice_model(config: argparse.Namespace, **kwargs) -> None:
 
     remote_url = config.alice_url + "/tflite/digest"
     remote = requests.get(remote_url, timeout=10)
-    remote_digest = remote.text
+    remote_digest = remote.text.strip()
     if os.path.exists(model_file):
         model_digest = hashlib.sha256(
             open(model_file, 'rb').read()).hexdigest()
