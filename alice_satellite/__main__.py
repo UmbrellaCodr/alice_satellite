@@ -1004,7 +1004,7 @@ async def alice_model(config: argparse.Namespace, **kwargs) -> None:
     model_c = "red"
     digest_c = "red"
 
-    remote_url = config.alice_url + "tflite/digest"
+    remote_url = config.alice_url + "/tflite/digest"
     remote = requests.get(remote_url, timeout=10)
     remote_digest = remote.text
     if os.path.exists(model_file):
