@@ -164,3 +164,52 @@ mqtt:
   port: 1883
   username: alice
 ```
+
+# pi configuration
+```
+sudo vim /lib/systemd/system/alice.service
+```
+```
+[Unit]
+Description=Alice Satellite
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/bin/python3 -m alice_satellite --data /home/pi/alice_data satellite -i 2 3 -m 4
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+```
+```
+sudo chmod 644 /lib/systemd/system/alice.service
+sudo systemctl daemon-reload
+sudo systemctl enable alice.service
+sudo systemctl start alice.service
+```
+
+## Service Tasks
+For every change that we do on the /lib/systemd/system folder we need to execute a daemon-reload (third line of previous code). If we want to check the status of our service, you can execute:
+```
+sudo systemctl status alice.service
+```
+### In general:
+
+Check status
+```
+sudo systemctl status alice.service
+```
+Start service
+```
+sudo systemctl start alice.service
+```
+Stop service
+```
+sudo systemctl stop alice.service
+```
+Check service's log
+```
+sudo journalctl -f -u alice.service
+```
