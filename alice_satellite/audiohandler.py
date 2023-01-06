@@ -54,13 +54,21 @@ class AudioParams:
         self.debug = config.debug
 
         device_info = sd.query_devices()
-        if self.audio_in in device_info:
+        if self.audio_in < len(device_info):
             self.sample_rate = int(
                 device_info[self.audio_in]['default_samplerate'])
-            self.channels = int(device_info[self.audio_in]['max_input_channels'])
+            self.channels_in = int(
+                device_info[self.audio_in]['max_input_channels'])
         else:
+            _log.error("audio_in device error")
             self.sample_rate = 16000
-            self.channels = 1 
+            self.channels_in = 1
+        if self.audio_out < len(device_info):
+            self.channels_out = int(
+                device_info[self.audio_out]['max_output_channels'])
+        else:
+            _log.error("audio_out device error")
+            self.channels_out = 1
 
 
 class AudioHandler:
@@ -89,10 +97,11 @@ class AudioHandler:
                 _log.debug(error)
 
         blocksize = int(self.params.sample_rate * self.params.rec_duration)
-        self.stream = sd.InputStream(callback=callback, channels=self.params.channels,
+        self.stream = sd.InputStream(callback=callback, channels=self.params.channels_in,
                                      samplerate=self.params.sample_rate,
                                      blocksize=blocksize,
                                      device=self.params.audio_in,
+                                     dtype='float32',
                                      **kwargs)
 
     def disconnect(self, **kwargs):
@@ -111,7 +120,7 @@ class AudioHandler:
         while True:
             indata, _ = await self.queue.get()
             if preprocess:
-                window = np.concatenate((window, np.squeeze(indata)))
+                window = np.concatenate((window, np.squeeze(indata[:, 0])))
                 if window.size < self.params.sample_rate:
                     window = np.concatenate(
                         (window, np.zeros(self.window_size)))
@@ -233,22 +242,30 @@ class AudioHandler:
                  samplerate=self.params.desired_sample_rate, closefd=True)
 
     def save_bytes(self, wav_bytes: bytes, file: str) -> None:
-        wavform, samplerate = sf.read(io.BytesIO(wav_bytes))
+        wavform, samplerate = sf.read(io.BytesIO(wav_bytes), dtype='float32')
         if samplerate != self.params.desired_sample_rate:
             wavform = librosa.resample(
-                wavform.T, orig_sr=samplerate, target_sr=self.params.desired_sample_rate)
+                wavform, orig_sr=samplerate, target_sr=self.params.desired_sample_rate)
         self.save_audio(wavform, file)
 
     def play_audio(self, wavform: np.ndarray, blocking=True) -> None:
         """play audio"""
-        sd.play(wavform.T, samplerate=self.params.desired_sample_rate,
+        # reshape audio to match audio out device
+        if wavform.ndim > 1 and wavform.shape[1] > self.params.channels_out:
+            wavform = wavform[:, 0:self.params.channels_out]
+        sd.play(wavform, samplerate=self.params.desired_sample_rate,
                 blocking=blocking, device=self.params.audio_out)
 
     def play_bytes(self, wav_bytes: bytes, blocking=True):
         """play audio bytes"""
-        wavform, samplerate = sf.read(io.BytesIO(wav_bytes), always_2d=True)
-
-        sd.play(wavform, samplerate=samplerate,
+        wavform, samplerate = sf.read(io.BytesIO(wav_bytes), dtype='float32')
+        if samplerate != self.params.sample_rate:
+            wavform = librosa.resample(
+                wavform, orig_sr=samplerate, target_sr=self.params.sample_rate)
+        # reshape audio to match audio out device
+        if wavform.ndim > 1 and wavform.shape[1] > self.params.channels_out:
+            wavform = wavform[:, 0:self.params.channels_out]
+        sd.play(wavform, samplerate=self.params.sample_rate,
                 blocking=blocking, device=self.params.audio_out)
 
     def load_audio(self, file: str) -> np.ndarray:

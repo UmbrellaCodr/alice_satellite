@@ -730,6 +730,15 @@ async def info(config: argparse.Namespace, **kwargs) -> None:
     else:
         print("no samples")
 
+    cprint("audio devices:", "red")
+    device_info = sd.query_devices()
+    print("IN:")
+    if config.audio_input < len(device_info):
+        print(device_info[config.audio_input])
+    print("OUT:")
+    if config.audio_output < len(device_info):
+        print(device_info[config.audio_output])
+
 
 def satellite_verify(config: argparse.Namespace) -> bool:
     if not os.path.exists(config.alice.model_path):
@@ -978,7 +987,8 @@ def download_model(config: argparse.Namespace, **kwargs) -> None:
             def _progress(count, block_size, total_size):
                 if total_size > block_size:
                     if (count * block_size) < total_size:
-                        percentage = (float(count * block_size) / float(total_size)) * 100.0
+                        percentage = (float(count * block_size) /
+                                      float(total_size)) * 100.0
                     else:
                         percentage = 100
                 else:
