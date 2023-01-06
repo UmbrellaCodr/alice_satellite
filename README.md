@@ -1,5 +1,7 @@
 # alice_satellite
 
+[list of supported wordds in the model](tflite/labels.txt)
+
 The goal of this project is to reduce the complexity and setup for Satellite clients in a Rhasspy enviroment.  There is no UI or web interface; and provides a yaml configuration file. A requirement is to work 100% offline without the need for an internet connection.
 
 - This provides a framework to generate and train a new wake word, custom to your needs (ie any language) using Tensorflow; heavily pulls from google kws research project.
