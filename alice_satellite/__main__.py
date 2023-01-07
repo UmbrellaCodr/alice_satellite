@@ -778,9 +778,12 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
     start_topic = "hermes/asr/startListening"
     stop_topic = "hermes/asr/stopListening"
     frame_topic = f"hermes/audioServer/{config.site_id}/audioFrame"
+    if mqtt_handler:
+        mqtt_handler.subscribe(play_topic)
 
     async def msg_callback(message: aiomqtt.Message):
         nonlocal listening
+        _log.debug("handle message topic: %s listen: %i", message.topic, listening)
         if message.topic.matches(f"hermes/audioServer/{config.site_id}/playBytes/#"):
             if config.verbose:
                 cprint("P", "white", attrs=['bold'], flush=True, end='')
@@ -806,10 +809,6 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
 
     async def audio_task():
         nonlocal detected, listening
-        if mqtt_handler:
-            await mqtt_handler.wait()
-            await mqtt_handler.mqtt_client.subscribe(play_topic)
-
         window = np.zeros(0)
         window_offset = 0
         mode_deadline = 0
@@ -837,7 +836,9 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
                             detected = False
                     mode_now = time.time()
                     if mode_now > mode_deadline:
+                        _log.error("timeout waiting for StopListen; detected %i; listening: %i", detected, listening)
                         detected = False
+                        listening = False
                     if not detected:
                         if mode_now > mode_deadline and config.verbose:
                             cprint("timeout", "magenta", flush=True, end='')
@@ -885,7 +886,7 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
                             cprint("detected", "magenta",
                                    flush=True, end='')
                         else:
-                            print("wake word detected")
+                            _log.info("wake word detected")
                 else:
                     if config.verbose:
                         print(".", flush=True, end='')
@@ -951,6 +952,8 @@ async def tts(config: argparse.Namespace, **kwargs) -> None:
     asyncio.ensure_future(mqtt_handler.task())
     result = await mqtt_handler.tts(config.text, config.site_id)
     print(f"completed {len(result)}")
+    if config.play:
+        audio_handler.play_bytes(result, True)
     if config.file:
         audio_handler.save_bytes(result, config.file)
 
@@ -1044,12 +1047,12 @@ async def alice_model(config: argparse.Namespace, **kwargs) -> None:
 
 async def main(**kwargs) -> None:
     """main alice entry point"""
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(stream=sys.stdout)
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     _log.addHandler(handler)
-    _log.setLevel(logging.ERROR)
+    _log.setLevel(logging.INFO)
 
     # https://docs.python.org/3/library/argparse.html
     parser = argparse.ArgumentParser(prog="alice")
@@ -1220,6 +1223,9 @@ async def main(**kwargs) -> None:
     )
     parser_tts.add_argument(
         "--file", help="save the wav"
+    )
+    parser_tts.add_argument(
+        "-p", "--play", action="store_true", help="play audio"
     )
 
     parser_transcribe = subparsers.add_parser(

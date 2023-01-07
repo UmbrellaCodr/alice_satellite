@@ -272,6 +272,7 @@ class MessageHandler():
         self.mqtt_initialized: asyncio.Event = asyncio.Event()
         self.mqtt_events: list[MessageHandlerEvent] = []
         self.debug = config.debug
+        self.subscribed: list[str] = []
 
     async def task(self, callback: Callable[[aiomqtt.Message], Awaitable[None]] = None, reconnect_interval: int = 5):
         while True:
@@ -279,6 +280,9 @@ class MessageHandler():
                 async with aiomqtt.Client(**self.mqtt_settings) as client:
                     self.mqtt_client = client
                     self.mqtt_initialized.set()
+                    _log.info("starting connection to %s", self.mqtt_settings['hostname'])
+                    for topic in self.subscribed:
+                        await self.mqtt_client.subscribe(topic)
                     async with self.mqtt_client.messages() as messages:
                         async for message in messages:
                             if self.debug:
@@ -294,13 +298,21 @@ class MessageHandler():
                     'Error %s. Reconnecting in %i seconds.', error, reconnect_interval)
                 await asyncio.sleep(reconnect_interval)
 
+    def subscribe(self, topic:str):
+        self.subscribed.append(topic)
+
+    def unsubscribe(self, topic:str):
+        self.subscribed.remove(topic)
+
     async def wait(self):
         # wait a moment for the handler to initialize
         if not self.mqtt_initialized.is_set():
-            async def wait(event: asyncio.Event):
+            _log.debug("waiting for mqtt connection")
+            async def should_initialize(event: asyncio.Event):
                 await event.wait()
-            wait_task = asyncio.create_task(wait(self.mqtt_initialized))
+            wait_task = asyncio.create_task(should_initialize(self.mqtt_initialized))
             await asyncio.wait_for(wait_task, 5)
+            _log.debug("mqtt initialized %i", self.mqtt_initialized.is_set())
             if not self.mqtt_initialized.is_set():
                 raise TimeoutError("timeout waiting for client to initialize")
 
