@@ -783,7 +783,8 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
 
     async def msg_callback(message: aiomqtt.Message):
         nonlocal listening
-        _log.debug("handle message topic: %s listen: %i", message.topic, listening)
+        _log.debug("handle message topic: %s listen: %i",
+                   message.topic, listening)
         if message.topic.matches(f"hermes/audioServer/{config.site_id}/playBytes/#"):
             if config.verbose:
                 cprint("P", "white", attrs=['bold'], flush=True, end='')
@@ -836,7 +837,8 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
                             detected = False
                     mode_now = time.time()
                     if mode_now > mode_deadline:
-                        _log.error("timeout waiting for StopListen; detected %i; listening: %i", detected, listening)
+                        _log.error(
+                            "timeout waiting for StopListen; detected %i; listening: %i", detected, listening)
                         detected = False
                         listening = False
                     if not detected:
@@ -916,10 +918,7 @@ async def mqtt(config: argparse.Namespace, **kwargs) -> None:
         tasks = []
         config.debug = True
         mqtt_handler = MessageHandler(config)
-
-        async def subscribe():
-            await mqtt_handler.wait()
-            await mqtt_handler.mqtt_client.subscribe(config.topic)
+        mqtt_handler.subscribe(config.topic)
 
         async def msg_callback(message: aiomqtt.Message):
             try:
@@ -930,7 +929,6 @@ async def mqtt(config: argparse.Namespace, **kwargs) -> None:
 
         tasks.append(asyncio.create_task(
             mqtt_handler.task(callback=msg_callback)))
-        tasks.append(asyncio.create_task(subscribe()))
 
         while tasks:
             _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -1244,7 +1242,7 @@ async def main(**kwargs) -> None:
 
     parser.add_argument(
         "--data", help="set the default data location",
-        default=os.getcwd() + "/alice_data"
+        default=os.path.join(os.path.expanduser('~'), "alice_data")
     )
     parser.add_argument(
         "-d", "--debug", action="store_true", help="maybe print something helpful"
@@ -1279,6 +1277,8 @@ async def main(**kwargs) -> None:
 
     if not os.path.exists(os.path.join(config.alice.model_path, "stream.tflite")):
         download_model(config)
+
+    _log.info("data path: %s", config.data)
 
     await args.func(config, **kwargs)
 
