@@ -47,32 +47,36 @@ class AudioParams:
     """hold audio settings"""
 
     def __init__(self, config: Namespace, rec_duration: float = 0.5) -> None:
-        self.audio_in = config.audio_input
-        self.audio_out = config.audio_output
         self.desired_sample_rate = config.desired_sample_rate
         self.rec_duration = rec_duration
 
-        device_info = sd.query_devices()
-        if self.audio_in < len(device_info):
-            _log.info(device_info[self.audio_in])
+        try:
+            a_in = sd.query_devices(device=config.audio_input, kind="input")
+            self.audio_in = a_in['name']
+            _log.info(a_in)
             self.sample_rate_in = int(
-                device_info[self.audio_in]['default_samplerate'])
+                a_in['default_samplerate'])
             self.channels_in = int(
-                device_info[self.audio_in]['max_input_channels'])
-        else:
+                a_in['max_input_channels'])
+        except ValueError:
             _log.error("audio_in device error")
+            self.audio_in = sd.default.device[0]
             self.sample_rate_in = 16000
-            self.channels_in = 1
-        if self.audio_out < len(device_info):
-            _log.info(device_info[self.audio_out])
+            self.channels_in = sd.default.channels[0]
+
+        try:
+            a_out = sd.query_devices(device=config.audio_output, kind="output")
+            self.audio_out = a_out['name']
+            _log.info(a_out)
             self.sample_rate_out = int(
-                device_info[self.audio_out]['default_samplerate'])
+                a_out['default_samplerate'])
             self.channels_out = int(
-                device_info[self.audio_out]['max_output_channels'])
-        else:
+                a_out['max_output_channels'])
+        except ValueError:
             _log.error("audio_out device error")
+            self.audio_out = sd.default.device[1]
             self.sample_rate_out = 16000
-            self.channels_out = 1
+            self.channels_out = sd.default.channels[1]
 
 
 class AudioHandler:

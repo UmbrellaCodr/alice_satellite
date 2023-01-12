@@ -731,13 +731,17 @@ async def info(config: argparse.Namespace, **kwargs) -> None:
         print("no samples")
 
     cprint("audio devices:", "red")
-    device_info = sd.query_devices()
-    print("IN:")
-    if config.audio_input < len(device_info):
-        print(device_info[config.audio_input])
-    print("OUT:")
-    if config.audio_output < len(device_info):
-        print(device_info[config.audio_output])
+    try:
+        device_info = sd.query_devices(device=config.audio_input, kind="input")
+        print("IN:")
+        print(device_info)
+
+        device_info = sd.query_devices(
+            device=config.audio_output, kind="output")
+        print("OUT:")
+        print(device_info)
+    except ValueError:
+        print("failed to get audio information")
 
 
 def satellite_verify(config: argparse.Namespace) -> bool:
@@ -1251,10 +1255,10 @@ async def main(**kwargs) -> None:
         "-v", "--verbose", action="store_true", help="log more"
     )
     parser.add_argument(
-        "--audio_input", type=int, help="specify in device from {list}"
+        "--audio_input", type=str, help="specify in device from {list}"
     )
     parser.add_argument(
-        "--audio_output", type=int, help="specify out device from {list}"
+        "--audio_output", type=str, help="specify out device from {list}"
     )
     args = parser.parse_args()
     config = load_config(args)
