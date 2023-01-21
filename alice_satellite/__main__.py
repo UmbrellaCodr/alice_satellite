@@ -350,20 +350,46 @@ async def generate(config: argparse.Namespace, **kwargs) -> None:
                         break
 
 
-def get_noise(config: argparse.Namespace) -> np.ndarray:
+def get_random_kw_audio(config: argparse.Namespace, keyword: str = "noise") -> np.ndarray:
     """get a random noise sample"""
     audio_handler = AudioHandler(config)
-    index = get_kw_samples_count(config, "noise", get_all=False)
-    index = random.randint(0, index)
+    index = get_kw_samples_count(config, keyword, get_all=False)
+    index = random.randint(0, index-1)
     count = 0
-    for _, fp, _ in get_kw_samples(config, "noise", get_all=False):
+    for _, fp, _ in get_kw_samples(config, keyword, get_all=False):
         if count == index:
-            print("using noise file: {}".format(fp))
-            noise = audio_handler.load_audio(fp)
+            if config.debug:
+                print("using noise file: {}".format(fp))
+            audio = audio_handler.load_audio(fp)
             break
         count += 1
 
-    return noise
+    return audio
+
+
+async def stitch(config: argparse.Namespace, **kwargs) -> None:
+    audio_handler = AudioHandler(config, training=True, **kwargs)
+    output = keyword_normalize(config.output)
+    print("processing: {} -> {}".format(config.keywords, output))
+
+    if len(config.keywords) != 2:
+        raise ValueError(
+            f"need 2 got {len(config.keywords)} keywords to stitch together")
+
+    b_files = []
+    for _, fp, _ in get_kw_samples(config, keyword=config.keywords[1], get_all=False):
+        b_files.append(fp)
+
+    count = 0
+    for _, _, a_wavform in get_kw_samples(config, keyword=config.keywords[0], get_all=False, offset=config.offset, get_audio=True):
+        index = random.randint(0, len(b_files)-1)
+        b_wavform = audio_handler.load_audio(b_files[index])
+        for seg in audio_handler.detect_words(a_wavform, True, callback=audio_handler.concat, pad=b_wavform):
+            file_name = "s_{}_{}".format(int(time.time()), count)
+            file_path = os.path.join(
+                config.alice.samples_path, output, file_name)
+            audio_handler.save_audio(seg, file_path)
+            count += 1
 
 
 def morph_file(config: argparse.Namespace, audio_handler: AudioHandler, wav_file: str, keyword: str, morph_count: int, noise: np.ndarray) -> None:
@@ -385,7 +411,7 @@ def morph_file(config: argparse.Namespace, audio_handler: AudioHandler, wav_file
 async def morph(config: argparse.Namespace, **kwargs) -> None:
     """morph samples"""
     audio_handler = AudioHandler(config, training=True, **kwargs)
-    noise = get_noise(config)
+    noise = get_random_kw_audio(config)
     samples = 0
     for k in config.keywords:
         for _, fp, _ in get_kw_samples(config, k, get_all=False):
@@ -654,7 +680,7 @@ async def verify(config: argparse.Namespace, **kwargs) -> None:
                 #     print(options)
                 #     loop = True
             elif char == "6":
-                noise = get_noise(config)
+                noise = get_random_kw_audio(config)
                 morph_file(config, audio_handler,
                            audio_file, name, 10, noise)
             else:
@@ -766,7 +792,7 @@ async def satellite(config: argparse.Namespace, **kwargs) -> None:
 
     tasks = []
     model_handler = kws.AliceKWS(config)
-    audio_handler = AudioHandler(config)
+    audio_handler = AudioHandler(config, verbose=True)
     audio_handler.connect()
     mqtt_handler = None
     if hasattr(config, 'mqtt'):
@@ -1216,6 +1242,22 @@ async def main(**kwargs) -> None:
     parser_mqtt.add_argument(
         "topic", type=str, help="a list of keywords to operate on",
         default="#"
+    )
+
+    parser_stitch = subparsers.add_parser('stitch', help='concat 2 words')
+    parser_stitch.set_defaults(func=stitch)
+    parser_stitch.add_argument(
+        "keywords", type=str, nargs='+', help="a list of keywords to generate samples for"
+    )
+    parser_stitch.add_argument(
+        "-o", "--offset", type=str, help="start file iteration at offset",
+    )
+    parser_stitch.add_argument(
+        "--output", type=str, help="output to specific keyword",
+        required=True
+    )
+    parser_stitch.add_argument(
+        "--db", type=int, help="db adjuster for word splitting"
     )
 
     parser_tts = subparsers.add_parser('tts', help='text to speech')

@@ -27,6 +27,7 @@ from typing import (
     AsyncGenerator,
     Generator,
     Tuple,
+    Callable,
 )
 import random
 import asyncio
@@ -46,14 +47,17 @@ _log = logging.getLogger("alice.audio")
 class AudioParams:
     """hold audio settings"""
 
-    def __init__(self, config: Namespace, rec_duration: float = 0.5) -> None:
+    def __init__(self, config: Namespace, verbose: bool, rec_duration: float = 0.5) -> None:
         self.desired_sample_rate = config.desired_sample_rate
         self.rec_duration = rec_duration
 
         try:
             a_in = sd.query_devices(device=config.audio_input, kind="input")
             self.audio_in = a_in['name']
-            _log.info(a_in)
+            if verbose:
+                _log.info(a_in)
+            else:
+                _log.debug(a_in)
             self.sample_rate_in = int(
                 a_in['default_samplerate'])
             self.channels_in = int(
@@ -67,7 +71,10 @@ class AudioParams:
         try:
             a_out = sd.query_devices(device=config.audio_output, kind="output")
             self.audio_out = a_out['name']
-            _log.info(a_out)
+            if verbose:
+                _log.info(a_out)
+            else:
+                _log.debug(a_out)
             self.sample_rate_out = int(
                 a_out['default_samplerate'])
             self.channels_out = int(
@@ -82,6 +89,7 @@ class AudioParams:
 class AudioHandler:
     def __init__(self,
                  config: Namespace,
+                 verbose: bool = False,
                  training=False,
                  **kwargs) -> None:
         self.db = config.db
@@ -90,7 +98,7 @@ class AudioHandler:
         self.loop = asyncio.get_event_loop()
         self.stream_in = None
 
-        self.params = AudioParams(config)
+        self.params = AudioParams(config, verbose)
 
         self.window_size = int(self.params.desired_sample_rate *
                                self.params.rec_duration)
@@ -186,7 +194,7 @@ class AudioHandler:
 
         return any(states), True
 
-    def pad_trunc(self, wavform: np.ndarray, verbose=False, pad: np.ndarray = None) -> None:
+    def pad_trunc(self, wavform: np.ndarray, verbose=False, pad: np.ndarray = None) -> np.ndarray:
         if wavform.size >= self.params.desired_sample_rate:
             # Truncate the signal to the given length
             if verbose:
@@ -219,7 +227,26 @@ class AudioHandler:
 
         return wavform
 
-    def detect_words(self, wavform: np.ndarray, verbose: bool = False, morph_count: int = 0, pad: np.ndarray = None):
+    def concat(self, wavform: np.ndarray, verbose=False, pad: np.ndarray = None) -> np.ndarray:
+        x = nr.reduce_noise(y=pad, sr=self.params.desired_sample_rate)
+        xs = librosa.effects.split(x, top_db=self.db)
+        for i in xs:
+            start = i[0]
+            stop = i[1]
+            seg = x[start:stop]
+            noise, valid = self.detect_noise(seg)
+            if valid and noise:
+                break
+
+        pad_size = (self.params.desired_sample_rate -
+                    (wavform.size + seg.size))
+        if pad_size < 0:
+            pad_size = 0
+        wavform = np.concatenate([wavform, np.zeros(int(pad_size/4)), seg])
+
+        return self.pad_trunc(wavform, verbose)
+
+    def detect_words(self, wavform: np.ndarray, verbose: bool = False, morph_count: int = 0, callback: Callable[[np.ndarray, bool, np.ndarray], np.ndarray] = None, pad: np.ndarray = None):
         """gather some audio"""
         x = nr.reduce_noise(y=wavform, sr=self.params.desired_sample_rate)
         xs = librosa.effects.split(x, top_db=self.db)
@@ -235,7 +262,10 @@ class AudioHandler:
                 for i in range(total):
                     if verbose:
                         cprint("o", 'green', end="")
-                    seg_p = self.pad_trunc(seg, verbose=verbose, pad=pad)
+                    if callback:
+                        seg_p = callback(seg, verbose=verbose, pad=pad)
+                    else:
+                        seg_p = self.pad_trunc(seg, verbose=verbose, pad=pad)
                     yield seg_p
 
     def save_audio(self, wavform: np.ndarray, file: str) -> None:
