@@ -40,7 +40,7 @@ from .mqtthandler import MessageHandler, MessageAsrStart, MessageAsrStop
 from .config import load_config, save_config
 from .generate import analyze, stitch, listen, detect, verify, generate, morph
 from .generate import get_kw, get_kw_samples
-from .utils import alice_model
+from .utils import alice_model, download_model
 
 _log = logging.getLogger("alice")
 
