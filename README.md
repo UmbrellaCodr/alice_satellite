@@ -2,18 +2,11 @@
 
 [list of supported words in the model](tflite/labels.txt)
 
-The goal of this project is to reduce the complexity and setup for Satellite clients in a Rhasspy enviroment.  There is no UI or web interface; and provides a yaml configuration file. A requirement is to work 100% offline without the need for an internet connection.
+The purpose of this project is to minimize the complexity and setup required for Satellite clients in a Rhasspy environment. The solution is designed to work 100% offline and does not require an internet connection. It offers a YAML configuration file as the only method of configuration, with no need for a UI or web interface.
 
-- This provides a framework to generate and train a new wake word, custom to your needs (ie any language) using Tensorflow; heavily pulls from google kws research project.
-- Will listen for a wake word, and send audio bytes to a rhasspy server
-- Will respond to PlayBytes requests from a rhasspy server
+The project leverages the Tensorflow framework to provide a solution for generating and training custom wake words in any language. This feature is based on extensive research from Google's KWS project. The prototype will listen for the wake word and send audio bytes to a Rhasspy server. It will also respond to PlayBytes requests from the Rhasspy server, making it an ideal solution for integration into a home automation setup.
 
-This is the initial prototype which I plan to use and maintain for my Home Assistant setup; your welcome to use it as well.
-
-This makes some assumptions:
-- You are using an MQTT broker
-- You have Rhasspy setup in your enviroment, for handling audio requests
-- HomeAssistant to handle all the intents
+It is important to note that the prototype assumes the use of an MQTT broker and a pre-configured Rhasspy environment for handling audio requests. Additionally, the project assumes the use of HomeAssistant to handle all intents.
 
 # Roadmap
 As this project is just getting started; I will refine and update the documentation over the next few months.
